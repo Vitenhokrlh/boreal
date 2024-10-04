@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendamento de Barbearia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000; /* Fundo preto */
+            color: #fff; /* Texto branco */
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #333; /* Cor de fundo do container */
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #fff; /* Cor do texto dos títulos */
+        }
+
+        #timeslots {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .timeslot {
+            background: #007bff;
+            color: white;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .timeslot:hover {
+            background: #0056b3;
+        }
+
+        .timeslot.booked {
+            background: #dc3545;
+        }
+
+        #appointment-form {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #appointment-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #appointment-list li {
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+            color: #fff; /* Cor do texto na lista de agendamentos */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cancel-button {
+            background: #dc3545; /* Botão vermelho */
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Agendamento de Barbearia</h1>
+        <div id="schedule">
+            <h2>Escolha um horário</h2>
+            <div id="timeslots"></div>
+        </div>
+        <div id="appointment-form">
+            <h2>Agendar</h2>
+            <input type="text" id="client-name" placeholder="Seu Nome" required>
+            <button id="book-button">Agendar</button>
+        </div>
+        <div id="appointments">
+            <h2>Agendamentos</h2>
+            <ul id="appointment-list"></ul>
+        </div>
+    </div>
+    <script>
+        const timeslots = document.getElementById('timeslots');
+        const bookButton = document.getElementById('book-button');
+        const clientNameInput = document.getElementById('client-name');
+        const appointmentList = document.getElementById('appointment-list');
+
+        const bookingsKey = 'barbershop_bookings';
+
+        // Criar horários de 30 em 30 minutos
+        const createTimeslots = () => {
+            for (let hour = 9; hour <= 20; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const time = new Date();
+                    time.setHours(hour, minute, 0, 0);
+                    const formattedTime = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    const slot = document.createElement('div');
+                    slot.classList.add('timeslot');
+                    slot.textContent = formattedTime;
+                    slot.dataset.time = formattedTime;
+                    slot.dataset.booked = false;
+                    slot.addEventListener('click', () => bookSlot(slot));
+
+                    timeslots.appendChild(slot);
+                }
+            }
+            loadBookings();
+        };
+
+        const loadBookings = () => {
+            const bookings = JSON.parse(localStorage.getItem(bookingsKey)) || {};
+            const now = Date.now();
+            for (const time in bookings) {
+                if (bookings.hasOwnProperty(time)) {
+                    // Verifica se já se passaram 8 horas
+                    if (now - bookings[time].timestamp > 8 * 60 * 60 * 1000) {
+                        delete bookings[time]; // Remove se passou 8 horas
+                    } else {
+                        const slot = Array.from(timeslots.children).find(s => s.dataset.time === time);
+                        if (slot) {
+                            slot.classList.add('booked');
+                            slot.dataset.booked = "true";
+                            const li = document.createElement('li');
+                            li.textContent = `${time} - ${bookings[time].name}`;
+                            const cancelButton = document.createElement('button');
+                            cancelButton.textContent = 'Cancelar';
+                            cancelButton.classList.add('cancel-button');
+                            cancelButton.onclick = () => cancelBooking(time, slot, li);
+                            li.appendChild(cancelButton);
+                            appointmentList.appendChild(li);
+                        }
+                    }
+                }
+            }
+            localStorage.setItem(bookingsKey, JSON.stringify(bookings)); // Atualiza o Local Storage
+        };
+
+        const bookSlot = (slot) => {
+            if (slot.dataset.booked === "false") {
+                const clientName = clientNameInput.value.trim();
+                if (clientName) {
+                    slot.classList.add('booked');
+                    slot.dataset.booked = "true";
+                    const li = document.createElement('li');
+                    li.textContent = `${slot.dataset.time} - ${clientName}`;
+                    const cancelButton = document.createElement('button');
+                    cancelButton.textContent = 'Cancelar';
+                    cancelButton.classList.add('cancel-button');
+                    cancelButton.onclick = () => cancelBooking(slot.dataset.time, slot, li);
+                    li.appendChild(cancelButton);
+                    appointmentList.appendChild(li);
+                    
+                    const bookings = JSON.parse(localStorage.getItem(bookingsKey)) || {};
+                    bookings[slot.dataset.time] = {
+                        name: clientName,
+                        timestamp: Date.now() // Armazena o timestamp
+                    };
+                    localStorage.setItem(bookingsKey, JSON.stringify(bookings));
+
+                    clientNameInput.value = ''; // Limpar o campo de nome
+                } else {
+                    alert('Por favor, insira seu nome.');
+                }
+            } else {
+                alert('Este horário já está agendado.');
+            }
+        };
+
+        const cancelBooking = (time, slot, li) => {
+            const bookings = JSON.parse(localStorage.getItem(bookingsKey)) || {};
+            delete bookings[time];
+            localStorage.setItem(bookingsKey, JSON.stringify(bookings));
+
+            slot.classList.remove('booked');
+            slot.dataset.booked = "false"; // Atualiza o estado do horário
+            appointmentList.removeChild(li); // Remove o item da lista
+        };
+
+        createTimeslots();
+    </script>
+</body>
+</html>
